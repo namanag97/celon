@@ -1,0 +1,39 @@
+case_id,activity,timestamp,resource
+1001,Submit Order,2024-01-15 09:00:00,Web
+1001,Check Inventory,2024-01-15 09:05:00,System
+1001,Process Payment,2024-01-15 09:10:00,Payment Gateway
+1001,Ship Order,2024-01-15 14:00:00,Warehouse
+1002,Submit Order,2024-01-15 10:00:00,Mobile
+1002,Check Inventory,2024-01-15 10:03:00,System
+1002,Cancel Order,2024-01-15 10:30:00,Customer
+1003,Submit Order,2024-01-15 11:00:00,Web
+1003,Check Inventory,2024-01-15 11:02:00,System
+1003,Process Payment,2024-01-15 11:08:00,Payment Gateway
+1003,Ship Order,2024-01-15 16:00:00,Warehouse
+1004,Submit Order,2024-01-15 12:00:00,Mobile
+1004,Check Inventory,2024-01-15 12:05:00,System
+1004,Process Payment,2024-01-15 12:15:00,Payment Gateway
+1004,Ship Order,2024-01-15 18:00:00,Warehouse
+1005,Submit Order,2024-01-15 13:00:00,Web
+1005,Check Inventory,2024-01-15 13:04:00,System
+1005,Cancel Order,2024-01-15 13:45:00,Customer
+1006,Submit Order,2024-01-16 09:00:00,Web
+1006,Check Inventory,2024-01-16 09:03:00,System
+1006,Process Payment,2024-01-16 09:12:00,Payment Gateway
+1006,Ship Order,2024-01-16 15:00:00,Warehouse
+1007,Submit Order,2024-01-16 10:00:00,Mobile
+1007,Check Inventory,2024-01-16 10:02:00,System
+1007,Process Payment,2024-01-16 10:10:00,Payment Gateway
+1007,Ship Order,2024-01-16 14:30:00,Warehouse
+1008,Submit Order,2024-01-16 11:00:00,Web
+1008,Check Inventory,2024-01-16 11:05:00,System
+1008,Process Payment,2024-01-16 11:18:00,Payment Gateway
+1008,Backorder,2024-01-16 11:20:00,System
+1008,Ship Order,2024-01-18 10:00:00,Warehouse
+1009,Submit Order,2024-01-16 12:00:00,Mobile
+1009,Check Inventory,2024-01-16 12:03:00,System
+1009,Cancel Order,2024-01-16 12:30:00,Customer
+1010,Submit Order,2024-01-16 14:00:00,Web
+1010,Check Inventory,2024-01-16 14:04:00,System
+1010,Process Payment,2024-01-16 14:15:00,Payment Gateway
+1010,Ship Order,2024-01-16 20:00:00,Warehouse
