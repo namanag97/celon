@@ -6,8 +6,11 @@ import { VariantList } from "@/components/VariantList";
 import { FilterSidebar } from "@/components/FilterSidebar";
 import type { FilterCriteria } from "@/components/FilterSidebar";
 import { BottleneckList } from "@/components/BottleneckList";
+import { TabNavigation, type TabId } from "@/components/TabNavigation";
+import { WorkflowStepper, type WorkflowStep } from "@/components/WorkflowStepper";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Activity, FileText, Hash } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Activity, FileText, Hash, Upload, RotateCcw } from "lucide-react";
 import "./App.css";
 
 interface UploadStats {
@@ -28,6 +31,8 @@ function App() {
   } | null>(null);
   const [activeFilters, setActiveFilters] = useState<FilterCriteria | null>(null);
   const [filterLoading, setFilterLoading] = useState(false);
+  const [activeTab, setActiveTab] = useState<TabId>("graph");
+  const [workflowStep, setWorkflowStep] = useState<WorkflowStep>("upload");
 
   const handleUploadSuccess = (data: UploadStats) => {
     setSessionId(data.session_id);
@@ -35,10 +40,11 @@ function App() {
     setSelectedVariant(null);
     setSelectedNode(null);
     setActiveFilters(null);
+    setWorkflowStep("dashboard");
+    setActiveTab("graph");
   };
 
   const handleVariantSelect = (variant: string[]) => {
-    // Toggle selection if clicking the same variant
     if (
       selectedVariant &&
       variant.length === selectedVariant.length &&
@@ -61,7 +67,6 @@ function App() {
   const handleApplyFilters = async (filters: FilterCriteria) => {
     setFilterLoading(true);
     setActiveFilters(filters);
-    // The ProcessGraph will refetch based on activeFilters prop
     setTimeout(() => setFilterLoading(false), 500);
   };
 
@@ -70,31 +75,144 @@ function App() {
   };
 
   const handleBottleneckSelect = (source: string, target: string) => {
-    // Could be used to highlight the bottleneck edge on the graph
     console.log("Bottleneck selected:", source, "->", target);
   };
 
+  const handleReset = () => {
+    setSessionId(null);
+    setUploadStats(null);
+    setWorkflowStep("upload");
+    setActiveTab("graph");
+    setSelectedNode(null);
+    setSelectedVariant(null);
+    setActiveFilters(null);
+  };
+
+  const handleStepClick = (step: WorkflowStep) => {
+    if (step === "upload") {
+      handleReset();
+    }
+  };
+
+  // Render Upload Stage
+  if (workflowStep === "upload") {
+    return (
+      <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5">
+        {/* Header */}
+        <header className="border-b bg-card/80 backdrop-blur-sm">
+          <div className="container mx-auto px-4 py-4">
+            <h1 className="text-2xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Process Mining Dashboard
+            </h1>
+            <p className="text-muted-foreground">
+              Discover patterns and optimize your business processes
+            </p>
+          </div>
+        </header>
+
+        {/* Stepper */}
+        <WorkflowStepper currentStep={workflowStep} onStepClick={handleStepClick} />
+
+        {/* Hero Upload Section */}
+        <main className="container mx-auto px-4 py-12">
+          <div className="max-w-2xl mx-auto text-center mb-8">
+            <div className="inline-flex items-center justify-center w-20 h-20 rounded-full bg-primary/10 mb-6">
+              <Upload className="w-10 h-10 text-primary" />
+            </div>
+            <h2 className="text-3xl font-bold mb-3">Upload Your Event Log</h2>
+            <p className="text-lg text-muted-foreground">
+              Start by uploading a CSV or XES file containing your process data.
+              We'll help you map the columns and discover insights.
+            </p>
+          </div>
+
+          <FileUpload onUploadSuccess={handleUploadSuccess} />
+
+          {/* Feature highlights */}
+          <div className="max-w-4xl mx-auto mt-16 grid grid-cols-1 md:grid-cols-3 gap-6">
+            {[
+              {
+                icon: Activity,
+                title: "Process Discovery",
+                desc: "Visualize your process flow with interactive diagrams",
+              },
+              {
+                icon: FileText,
+                title: "Metrics & KPIs",
+                desc: "Track case durations, throughput, and variants",
+              },
+              {
+                icon: Hash,
+                title: "Bottleneck Analysis",
+                desc: "Identify delays and optimization opportunities",
+              },
+            ].map((feature, i) => (
+              <Card key={i} className="border-dashed hover:border-primary/50 transition-colors">
+                <CardContent className="pt-6 text-center">
+                  <feature.icon className="w-8 h-8 mx-auto mb-3 text-primary/70" />
+                  <h3 className="font-semibold mb-1">{feature.title}</h3>
+                  <p className="text-sm text-muted-foreground">{feature.desc}</p>
+                </CardContent>
+              </Card>
+            ))}
+          </div>
+        </main>
+      </div>
+    );
+  }
+
+  // Render Dashboard Stage
   return (
-    <div className="min-h-screen bg-background">
+    <div className="min-h-screen bg-gradient-to-br from-background via-background to-primary/5 flex flex-col">
       {/* Header */}
-      <header className="border-b bg-card sticky top-0 z-50">
-        <div className="container mx-auto px-4 py-4">
-          <h1 className="text-2xl font-bold text-foreground">
-            Process Mining Dashboard
-          </h1>
-          <p className="text-muted-foreground">
-            Upload event logs and discover process models
-          </p>
+      <header className="border-b bg-card/80 backdrop-blur-sm sticky top-0 z-50">
+        <div className="container mx-auto px-4 py-3 flex items-center justify-between">
+          <div>
+            <h1 className="text-xl font-bold bg-gradient-to-r from-primary to-primary/60 bg-clip-text text-transparent">
+              Process Mining Dashboard
+            </h1>
+          </div>
+          <div className="flex items-center gap-4">
+            {/* Quick Stats Pills */}
+            {uploadStats && (
+              <div className="hidden md:flex items-center gap-3">
+                <span className="px-3 py-1 rounded-full bg-primary/10 text-sm font-medium">
+                  <Hash className="inline w-3.5 h-3.5 mr-1" />
+                  {uploadStats.case_count.toLocaleString()} cases
+                </span>
+                <span className="px-3 py-1 rounded-full bg-primary/10 text-sm font-medium">
+                  <FileText className="inline w-3.5 h-3.5 mr-1" />
+                  {uploadStats.event_count.toLocaleString()} events
+                </span>
+                <span className="px-3 py-1 rounded-full bg-primary/10 text-sm font-medium">
+                  <Activity className="inline w-3.5 h-3.5 mr-1" />
+                  {uploadStats.activities.length} activities
+                </span>
+              </div>
+            )}
+            <Button variant="outline" size="sm" onClick={handleReset}>
+              <RotateCcw className="w-4 h-4 mr-1" />
+              New Analysis
+            </Button>
+          </div>
         </div>
       </header>
 
-      {/* Main Content */}
-      <main className="container mx-auto px-4 py-6">
-        <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
-          {/* Left Sidebar - Upload, Filters & Quick Stats */}
-          <aside className="space-y-6">
-            <FileUpload onUploadSuccess={handleUploadSuccess} />
+      {/* Stepper */}
+      <WorkflowStepper currentStep={workflowStep} onStepClick={handleStepClick} />
 
+      {/* Tab Navigation */}
+      <TabNavigation
+        activeTab={activeTab}
+        onTabChange={setActiveTab}
+        disabled={!sessionId}
+      />
+
+      {/* Main Content */}
+      <main className="flex-1 container mx-auto px-4 py-6">
+        <div className="grid gap-6 lg:grid-cols-[280px_1fr]">
+          {/* Sidebar */}
+          <aside className="space-y-4">
             {/* Filters */}
             {uploadStats && (
               <FilterSidebar
@@ -105,101 +223,65 @@ function App() {
               />
             )}
 
-            {uploadStats && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Quick Stats</CardTitle>
-                </CardHeader>
-                <CardContent className="space-y-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      <Hash className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Cases</p>
-                      <p className="text-xl font-bold">
-                        {uploadStats.case_count.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      <FileText className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">Events</p>
-                      <p className="text-xl font-bold">
-                        {uploadStats.event_count.toLocaleString()}
-                      </p>
-                    </div>
-                  </div>
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 bg-primary/10 rounded-full">
-                      <Activity className="w-4 h-4 text-primary" />
-                    </div>
-                    <div>
-                      <p className="text-sm text-muted-foreground">
-                        Activities
-                      </p>
-                      <p className="text-xl font-bold">
-                        {uploadStats.activities.length}
-                      </p>
-                    </div>
-                  </div>
-                </CardContent>
-              </Card>
-            )}
-
             {/* Selected Node Info */}
             {selectedNode && (
-              <Card>
-                <CardHeader className="pb-3">
-                  <CardTitle className="text-lg">Selected Activity</CardTitle>
+              <Card className="animate-in slide-in-from-left-2">
+                <CardHeader className="pb-2">
+                  <CardTitle className="text-sm font-medium">Selected Activity</CardTitle>
                 </CardHeader>
                 <CardContent>
-                  <div className="space-y-2">
-                    <p className="font-medium">{selectedNode.label}</p>
-                    <p className="text-sm text-muted-foreground">
-                      Frequency: {selectedNode.frequency.toLocaleString()}{" "}
-                      occurrences
-                    </p>
-                  </div>
+                  <p className="font-semibold">{selectedNode.label}</p>
+                  <p className="text-sm text-muted-foreground">
+                    {selectedNode.frequency.toLocaleString()} occurrences
+                  </p>
                 </CardContent>
               </Card>
             )}
           </aside>
 
-          {/* Main Content Area */}
+          {/* Tab Content */}
           <div className="space-y-6">
-            {/* Process Graph */}
-            <ProcessGraph
-              sessionId={sessionId}
-              onNodeSelect={handleNodeSelect}
-              filters={activeFilters}
-            />
+            {activeTab === "graph" && (
+              <div className="animate-in fade-in-0 duration-300">
+                <ProcessGraph
+                  sessionId={sessionId}
+                  onNodeSelect={handleNodeSelect}
+                  filters={activeFilters}
+                />
+              </div>
+            )}
 
-            {/* Metrics Panel */}
-            <MetricsPanel sessionId={sessionId} />
+            {activeTab === "metrics" && (
+              <div className="animate-in fade-in-0 duration-300">
+                <MetricsPanel sessionId={sessionId} />
+              </div>
+            )}
 
-            {/* Bottleneck Analysis */}
-            <BottleneckList
-              sessionId={sessionId}
-              onBottleneckSelect={handleBottleneckSelect}
-            />
+            {activeTab === "bottlenecks" && (
+              <div className="animate-in fade-in-0 duration-300">
+                <BottleneckList
+                  sessionId={sessionId}
+                  onBottleneckSelect={handleBottleneckSelect}
+                />
+              </div>
+            )}
 
-            {/* Variant List */}
-            <VariantList
-              sessionId={sessionId}
-              onVariantSelect={handleVariantSelect}
-              selectedVariant={selectedVariant}
-            />
+            {activeTab === "variants" && (
+              <div className="animate-in fade-in-0 duration-300">
+                <VariantList
+                  sessionId={sessionId}
+                  onVariantSelect={handleVariantSelect}
+                  selectedVariant={selectedVariant}
+                />
+              </div>
+            )}
           </div>
         </div>
       </main>
 
       {/* Footer */}
-      <footer className="border-t bg-card mt-8">
-        <div className="container mx-auto px-4 py-4 text-center text-sm text-muted-foreground">
+      <footer className="border-t bg-card/50 mt-auto">
+        <div className="container mx-auto px-4 py-3 text-center text-sm text-muted-foreground">
           Process Mining MVP - Built with React, FastAPI, and PM4Py
         </div>
       </footer>
@@ -208,4 +290,3 @@ function App() {
 }
 
 export default App;
-
