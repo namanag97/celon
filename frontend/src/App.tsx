@@ -3,6 +3,9 @@ import { FileUpload } from "@/components/FileUpload";
 import { ProcessGraph } from "@/components/ProcessGraph";
 import { MetricsPanel } from "@/components/MetricsPanel";
 import { VariantList } from "@/components/VariantList";
+import { FilterSidebar } from "@/components/FilterSidebar";
+import type { FilterCriteria } from "@/components/FilterSidebar";
+import { BottleneckList } from "@/components/BottleneckList";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Activity, FileText, Hash } from "lucide-react";
 import "./App.css";
@@ -23,12 +26,15 @@ function App() {
     label: string;
     frequency: number;
   } | null>(null);
+  const [activeFilters, setActiveFilters] = useState<FilterCriteria | null>(null);
+  const [filterLoading, setFilterLoading] = useState(false);
 
   const handleUploadSuccess = (data: UploadStats) => {
     setSessionId(data.session_id);
     setUploadStats(data);
     setSelectedVariant(null);
     setSelectedNode(null);
+    setActiveFilters(null);
   };
 
   const handleVariantSelect = (variant: string[]) => {
@@ -52,6 +58,22 @@ function App() {
     setSelectedNode(nodeData);
   };
 
+  const handleApplyFilters = async (filters: FilterCriteria) => {
+    setFilterLoading(true);
+    setActiveFilters(filters);
+    // The ProcessGraph will refetch based on activeFilters prop
+    setTimeout(() => setFilterLoading(false), 500);
+  };
+
+  const handleClearFilters = () => {
+    setActiveFilters(null);
+  };
+
+  const handleBottleneckSelect = (source: string, target: string) => {
+    // Could be used to highlight the bottleneck edge on the graph
+    console.log("Bottleneck selected:", source, "->", target);
+  };
+
   return (
     <div className="min-h-screen bg-background">
       {/* Header */}
@@ -69,9 +91,19 @@ function App() {
       {/* Main Content */}
       <main className="container mx-auto px-4 py-6">
         <div className="grid gap-6 lg:grid-cols-[350px_1fr]">
-          {/* Left Sidebar - Upload & Quick Stats */}
+          {/* Left Sidebar - Upload, Filters & Quick Stats */}
           <aside className="space-y-6">
             <FileUpload onUploadSuccess={handleUploadSuccess} />
+
+            {/* Filters */}
+            {uploadStats && (
+              <FilterSidebar
+                activities={uploadStats.activities}
+                onApplyFilters={handleApplyFilters}
+                onClearFilters={handleClearFilters}
+                isLoading={filterLoading}
+              />
+            )}
 
             {uploadStats && (
               <Card>
@@ -143,10 +175,17 @@ function App() {
             <ProcessGraph
               sessionId={sessionId}
               onNodeSelect={handleNodeSelect}
+              filters={activeFilters}
             />
 
             {/* Metrics Panel */}
             <MetricsPanel sessionId={sessionId} />
+
+            {/* Bottleneck Analysis */}
+            <BottleneckList
+              sessionId={sessionId}
+              onBottleneckSelect={handleBottleneckSelect}
+            />
 
             {/* Variant List */}
             <VariantList
@@ -169,3 +208,4 @@ function App() {
 }
 
 export default App;
+
