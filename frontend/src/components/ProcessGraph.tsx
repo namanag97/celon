@@ -5,12 +5,13 @@ import type { Core, NodeSingular } from "cytoscape";
 import dagre from "cytoscape-dagre";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
-import { ZoomIn, ZoomOut, Maximize2, RotateCcw } from "lucide-react";
+import { ZoomIn, ZoomOut, Maximize2, RotateCcw, Clock, Hash, Download } from "lucide-react";
 import {
   cytoscapeStylesheet,
   dagreLayoutOptions,
   breadthfirstLayoutOptions,
 } from "@/lib/cytoscape-config";
+import type { FilterCriteria } from "@/components/FilterSidebar";
 
 // Register dagre layout
 cytoscape.use(dagre);
@@ -18,11 +19,13 @@ cytoscape.use(dagre);
 interface GraphData {
   nodes: Array<{ data: { id: string; label: string; frequency: number; isStart?: boolean; isEnd?: boolean; isSpecial?: boolean } }>;
   edges: Array<{ data: { source: string; target: string; weight: number } }>;
+  performance_edges?: Array<{ data: { source: string; target: string; weight: number; avgDurationSeconds: number; avgDurationFormatted: string } }>;
 }
 
 interface ProcessGraphProps {
   sessionId: string | null;
   onNodeSelect?: (nodeData: { id: string; label: string; frequency: number }) => void;
+  filters?: FilterCriteria | null;
 }
 
 interface NodeTooltip {
@@ -32,15 +35,16 @@ interface NodeTooltip {
   data: { id: string; label: string; frequency: number } | null;
 }
 
-export function ProcessGraph({ sessionId, onNodeSelect }: ProcessGraphProps) {
+export function ProcessGraph({ sessionId, onNodeSelect, filters }: ProcessGraphProps) {
   const cyRef = useRef<Core | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const [graphData, setGraphData] = useState<GraphData | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [tooltip, setTooltip] = useState<NodeTooltip>({ visible: false, x: 0, y: 0, data: null });
+  const [viewMode, setViewMode] = useState<"frequency" | "performance">("frequency");
 
-  // Fetch graph data when sessionId changes
+  // Fetch graph data when sessionId or filters change
   useEffect(() => {
     if (!sessionId) {
       setGraphData(null);
@@ -51,11 +55,27 @@ export function ProcessGraph({ sessionId, onNodeSelect }: ProcessGraphProps) {
       setLoading(true);
       setError(null);
       try {
-        const response = await fetch(`http://localhost:8000/discover/${sessionId}`);
-        if (!response.ok) {
-          throw new Error(`Failed to fetch graph data: ${response.statusText}`);
+        let data: GraphData;
+
+        // Use filter endpoint if filters are active
+        if (filters && (filters.date_start || filters.date_end || filters.activities || filters.exclude_activities)) {
+          const response = await fetch(`http://localhost:8000/filter/${sessionId}`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(filters),
+          });
+          if (!response.ok) {
+            throw new Error(`Failed to fetch filtered graph: ${response.statusText}`);
+          }
+          data = await response.json();
+        } else {
+          const response = await fetch(`http://localhost:8000/discover/${sessionId}`);
+          if (!response.ok) {
+            throw new Error(`Failed to fetch graph data: ${response.statusText}`);
+          }
+          data = await response.json();
         }
-        const data = await response.json();
+
         setGraphData(data);
       } catch (err) {
         setError(err instanceof Error ? err.message : "Failed to load process graph");
@@ -66,7 +86,7 @@ export function ProcessGraph({ sessionId, onNodeSelect }: ProcessGraphProps) {
     };
 
     fetchGraphData();
-  }, [sessionId]);
+  }, [sessionId, filters]);
 
   // Set up cytoscape instance reference and event handlers
   const setCytoscape = useCallback((cy: Core) => {
@@ -140,16 +160,79 @@ export function ProcessGraph({ sessionId, onNodeSelect }: ProcessGraphProps) {
     }
   };
 
-  // Convert graph data to cytoscape elements
+  const handleExportPng = () => {
+    if (cyRef.current) {
+      const png = cyRef.current.png({ scale: 2, bg: "#ffffff" });
+      const link = document.createElement("a");
+      link.href = png;
+      link.download = "process-graph.png";
+      link.click();
+    }
+  };
+
+  // Get performance-enhanced stylesheet for performance view
+  const getPerformanceStylesheet = () => {
+    if (viewMode !== "performance" || !graphData?.performance_edges) {
+      return cytoscapeStylesheet;
+    }
+
+    // Find max duration for scaling
+    const maxDuration = Math.max(
+      ...graphData.performance_edges.map(e => e.data.avgDurationSeconds),
+      1
+    );
+
+    // Create a modified stylesheet with performance coloring
+    return [
+      ...cytoscapeStylesheet,
+      {
+        selector: "edge[avgDurationSeconds]",
+        style: {
+          "line-color": `mapData(avgDurationSeconds, 0, ${maxDuration}, #22c55e, #ef4444)`,
+          "target-arrow-color": `mapData(avgDurationSeconds, 0, ${maxDuration}, #22c55e, #ef4444)`,
+          label: "data(avgDurationFormatted)",
+        },
+      },
+    ];
+  };
+
+  // Convert graph data to cytoscape elements, merging performance data in performance mode
   const elements = graphData
-    ? [...graphData.nodes, ...graphData.edges]
+    ? [
+      ...graphData.nodes,
+      ...(viewMode === "performance" && graphData.performance_edges
+        ? graphData.performance_edges
+        : graphData.edges),
+    ]
     : [];
 
   return (
     <Card className="h-full">
       <CardHeader className="flex flex-row items-center justify-between pb-2">
         <CardTitle>Process Model (DFG)</CardTitle>
-        <div className="flex gap-1">
+        <div className="flex gap-1 flex-wrap">
+          {/* View Mode Toggle */}
+          <div className="flex rounded-md border mr-2">
+            <Button
+              variant={viewMode === "frequency" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("frequency")}
+              className="rounded-r-none"
+            >
+              <Hash className="h-4 w-4 mr-1" />
+              Freq
+            </Button>
+            <Button
+              variant={viewMode === "performance" ? "default" : "ghost"}
+              size="sm"
+              onClick={() => setViewMode("performance")}
+              className="rounded-l-none"
+            >
+              <Clock className="h-4 w-4 mr-1" />
+              Time
+            </Button>
+          </div>
+
           <Button variant="outline" size="icon" onClick={handleZoomIn} title="Zoom In">
             <ZoomIn className="h-4 w-4" />
           </Button>
@@ -161,6 +244,9 @@ export function ProcessGraph({ sessionId, onNodeSelect }: ProcessGraphProps) {
           </Button>
           <Button variant="outline" size="icon" onClick={handleReset} title="Reset Layout">
             <RotateCcw className="h-4 w-4" />
+          </Button>
+          <Button variant="outline" size="icon" onClick={handleExportPng} title="Download PNG">
+            <Download className="h-4 w-4" />
           </Button>
         </div>
       </CardHeader>
@@ -193,7 +279,7 @@ export function ProcessGraph({ sessionId, onNodeSelect }: ProcessGraphProps) {
           <>
             <CytoscapeComponent
               elements={elements}
-              stylesheet={cytoscapeStylesheet}
+              stylesheet={getPerformanceStylesheet()}
               style={{ width: "100%", height: "100%" }}
               cy={setCytoscape}
               className="rounded-lg border bg-slate-50"

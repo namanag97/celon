@@ -4,9 +4,22 @@ import axios from 'axios';
 import { Upload, FileText } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { cn } from '@/lib/utils';
+import { ColumnMapper } from './ColumnMapper';
 
 interface FileUploadProps {
-    onUploadSuccess: (data: any) => void;
+    onUploadSuccess: (data: {
+        session_id: string;
+        case_count: number;
+        event_count: number;
+        activities: string[];
+    }) => void;
+}
+
+interface PreviewData {
+    columns: string[];
+    preview_rows: Record<string, unknown>[];
+    row_count: number;
+    temp_id: string;
 }
 
 interface LogEntry {
@@ -19,6 +32,7 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
     const [uploadProgress, setUploadProgress] = useState<number>(0);
     const [isUploading, setIsUploading] = useState<boolean>(false);
     const [logs, setLogs] = useState<LogEntry[]>([]);
+    const [previewData, setPreviewData] = useState<PreviewData | null>(null);
 
     const addLog = (message: string, type: 'info' | 'success' | 'error' = 'info') => {
         const timestamp = new Date().toLocaleTimeString();
@@ -36,36 +50,52 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
 
         setIsUploading(true);
         setUploadProgress(0);
-        addLog('Starting upload...', 'info');
+        addLog('Uploading for preview...', 'info');
 
         try {
-            const response = await axios.post('http://localhost:8000/upload', formData, {
+            // Step 1: Preview endpoint to get columns
+            const response = await axios.post('http://localhost:8000/preview', formData, {
                 headers: {
                     'Content-Type': 'multipart/form-data',
                 },
                 onUploadProgress: (progressEvent) => {
                     const percentCompleted = Math.round((progressEvent.loaded * 100) / (progressEvent.total || file.size));
                     setUploadProgress(percentCompleted);
-                    if (percentCompleted % 20 === 0 || percentCompleted === 100) {
-                        // Reduce log spam, log every 20%
-                        addLog(`Upload progress: ${percentCompleted}%`, 'info');
-                    }
                 },
             });
 
-            addLog('Upload completed successfully!', 'success');
-            addLog(`Session ID: ${response.data.session_id}`, 'success');
-            addLog(`Cases: ${response.data.case_count}, Events: ${response.data.event_count}`, 'success');
+            addLog('File uploaded successfully!', 'success');
+            addLog(`Found ${response.data.columns.length} columns, ${response.data.row_count} rows`, 'info');
+            addLog('Please map your columns below...', 'info');
 
-            onUploadSuccess(response.data);
-        } catch (error: any) {
+            // Show column mapper
+            setPreviewData(response.data);
+        } catch (error: unknown) {
             console.error('Upload error:', error);
-            const errorMessage = error.response?.data?.detail || error.message || 'Upload failed';
+            const axiosError = error as { response?: { data?: { detail?: string } }; message?: string };
+            const errorMessage = axiosError.response?.data?.detail || axiosError.message || 'Upload failed';
             addLog(`Error: ${errorMessage}`, 'error');
         } finally {
             setIsUploading(false);
         }
-    }, [onUploadSuccess]);
+    }, []);
+
+    const handleMappingComplete = (data: {
+        session_id: string;
+        case_count: number;
+        event_count: number;
+        activities: string[];
+    }) => {
+        addLog(`Analysis complete! Session ID: ${data.session_id}`, 'success');
+        addLog(`Cases: ${data.case_count}, Events: ${data.event_count}`, 'success');
+        setPreviewData(null);
+        onUploadSuccess(data);
+    };
+
+    const handleMappingCancel = () => {
+        setPreviewData(null);
+        setLogs([]);
+    };
 
     const { getRootProps, getInputProps, isDragActive } = useDropzone({
         onDrop,
@@ -74,8 +104,50 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
             'application/xml': ['.xes'],
             'text/xml': ['.xes']
         },
-        multiple: false
+        multiple: false,
+        disabled: previewData !== null
     });
+
+    // Show column mapper when we have preview data
+    if (previewData) {
+        return (
+            <div className="space-y-4">
+                <ColumnMapper
+                    columns={previewData.columns}
+                    previewRows={previewData.preview_rows}
+                    tempId={previewData.temp_id}
+                    onComplete={handleMappingComplete}
+                    onCancel={handleMappingCancel}
+                />
+                {logs.length > 0 && (
+                    <Card>
+                        <CardHeader className="py-3">
+                            <CardTitle className="text-sm font-medium flex items-center gap-2">
+                                <FileText className="w-4 h-4" />
+                                Activity Log
+                            </CardTitle>
+                        </CardHeader>
+                        <CardContent className="py-0 pb-3">
+                            <div className="bg-muted/50 rounded-md p-3 max-h-[150px] overflow-y-auto text-xs font-mono space-y-1">
+                                {logs.map((log, index) => (
+                                    <div key={index} className="flex gap-2">
+                                        <span className="text-muted-foreground">[{log.timestamp}]</span>
+                                        <span className={cn(
+                                            log.type === 'error' ? "text-destructive" :
+                                                log.type === 'success' ? "text-green-600" :
+                                                    "text-foreground"
+                                        )}>
+                                            {log.message}
+                                        </span>
+                                    </div>
+                                ))}
+                            </div>
+                        </CardContent>
+                    </Card>
+                )}
+            </div>
+        );
+    }
 
     return (
         <div className="w-full max-w-2xl mx-auto p-4 space-y-4">
@@ -103,7 +175,7 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
                                     {isDragActive ? "Drop the file here" : "Drag & drop or click to select"}
                                 </p>
                                 <p className="text-xs text-muted-foreground">
-                                    Supports .csv and .xes files
+                                    Supports .csv and .xes files • Any column names
                                 </p>
                             </div>
                         </div>
@@ -126,7 +198,7 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
                 </CardContent>
             </Card>
 
-            {logs.length > 0 && (
+            {logs.length > 0 && !previewData && (
                 <Card>
                     <CardHeader className="py-3">
                         <CardTitle className="text-sm font-medium flex items-center gap-2">
@@ -155,3 +227,4 @@ export function FileUpload({ onUploadSuccess }: FileUploadProps) {
         </div>
     );
 }
+
